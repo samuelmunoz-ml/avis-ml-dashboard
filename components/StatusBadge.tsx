@@ -1,30 +1,34 @@
-import { FindingStatus, ExperimentStatus } from '@/lib/types';
+type Status = string;
 
-type Status = FindingStatus | ExperimentStatus | 'New' | 'Pending' | 'Confirmed' | 'Failed' | string;
-
-const statusStyles: Record<string, string> = {
-  Reported: 'bg-[#FFF3E0] text-[#E65100]',
-  Acknowledged: 'bg-[#EFF0F0] text-[#464A4D]',
-  'Fix in progress': 'bg-[#E3F2FD] text-[#1565C0]',
-  Resolved: 'bg-[#E8F5E9] text-[#2E7D32]',
-  Running: 'bg-[#E3F2FD] text-[#1565C0]',
-  Planning: 'bg-[#EFF0F0] text-[#464A4D]',
-  Complete: 'bg-[#E8F5E9] text-[#2E7D32]',
-  Blocked: 'bg-[#FFEBEE] text-[#C62828]',
-  Pending: 'bg-[#FFF3E0] text-[#E65100]',
-  Confirmed: 'bg-[#E8F5E9] text-[#2E7D32]',
-  Failed: 'bg-[#FFEBEE] text-[#C62828]',
-  New: 'bg-[#E65100] text-white',
-  Upcoming: 'bg-[#EFF0F0] text-[#464A4D]',
-  'In Progress': 'bg-[#E3F2FD] text-[#1565C0]',
+const statusConfig: Record<string, { bg: string; text: string; dot: string }> = {
+  Reported:         { bg: '#FFF7ED', text: '#C2410C', dot: '#F97316' },
+  Acknowledged:     { bg: '#F9FAFB', text: '#4B5563', dot: '#9CA3AF' },
+  'Fix in progress':{ bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
+  Resolved:         { bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
+  Running:          { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
+  Planning:         { bg: '#F9FAFB', text: '#4B5563', dot: '#9CA3AF' },
+  Complete:         { bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
+  Blocked:          { bg: '#FFF1F2', text: '#BE123C', dot: '#F43F5E' },
+  Pending:          { bg: '#FFF7ED', text: '#C2410C', dot: '#F97316' },
+  Confirmed:        { bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
+  Failed:           { bg: '#FFF1F2', text: '#BE123C', dot: '#F43F5E' },
+  New:              { bg: '#C2410C', text: '#FFFFFF', dot: '#FFFFFF' },
+  Upcoming:         { bg: '#F9FAFB', text: '#4B5563', dot: '#9CA3AF' },
+  'In Progress':    { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
 };
 
 export default function StatusBadge({ status, className = '' }: { status: Status; className?: string }) {
-  const style = statusStyles[status] ?? 'bg-[#EFF0F0] text-[#464A4D]';
+  const cfg = statusConfig[status] ?? { bg: '#F9FAFB', text: '#4B5563', dot: '#9CA3AF' };
+  const isNew = status === 'New';
+
   return (
     <span
-      className={`inline-flex items-center px-3 h-7 rounded-full text-xs font-medium whitespace-nowrap ${style} ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 h-[26px] rounded-full text-[12px] font-semibold whitespace-nowrap ${className}`}
+      style={{ background: cfg.bg, color: cfg.text }}
     >
+      {!isNew && (
+        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.dot }} />
+      )}
       {status}
     </span>
   );

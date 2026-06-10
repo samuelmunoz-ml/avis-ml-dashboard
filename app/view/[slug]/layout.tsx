@@ -19,29 +19,24 @@ export default function ViewerLayout({
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    if (isGatePage) {
-      setChecked(true);
-      return;
-    }
+    if (isGatePage) { setChecked(true); return; }
     const ok = isAuthenticated(slug);
-    if (!ok) {
-      router.replace(`/view/${slug}`);
-    } else {
-      setAuthed(true);
-    }
+    if (!ok) { router.replace(`/view/${slug}`); } else { setAuthed(true); }
     setChecked(true);
   }, [slug, isGatePage, router]);
 
   if (!checked) return null;
-
   if (isGatePage) return <>{children}</>;
-
   if (!authed) return null;
 
   return (
-    <div className="flex min-h-screen bg-[#F7F7F6]">
+    <div className="flex min-h-screen" style={{ background: '#F3F4F6' }}>
       <ViewerSidebar slug={slug} />
-      <main className="flex-1 overflow-auto bg-white">{children}</main>
+      <main className="flex-1 overflow-auto" style={{ background: '#F3F4F6' }}>
+        <div className="min-h-full" style={{ background: '#F3F4F6' }}>
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

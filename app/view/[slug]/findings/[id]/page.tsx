@@ -1,16 +1,16 @@
 'use client';
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useData, markFindingsSeen } from '@/lib/store';
 import StatusBadge from '@/components/StatusBadge';
 import { ResolutionStep } from '@/lib/types';
+import { ChevronRight, ArrowRight, X } from 'lucide-react';
 
 function StepIcon({ status }: { status: ResolutionStep['status'] }) {
   if (status === 'completed') {
     return (
-      <div className="w-6 h-6 rounded-full bg-[#234474] flex items-center justify-center flex-shrink-0">
-        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+      <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#000F1E' }}>
+        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
@@ -18,20 +18,17 @@ function StepIcon({ status }: { status: ResolutionStep['status'] }) {
   }
   if (status === 'in_progress') {
     return (
-      <div className="w-6 h-6 rounded-full border-2 border-[#234474] bg-white flex items-center justify-center flex-shrink-0">
-        <div className="w-2 h-2 rounded-full bg-[#234474]" />
+      <div className="w-6 h-6 rounded-full border-[2px] border-[#3B82F6] bg-white flex items-center justify-center flex-shrink-0">
+        <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
       </div>
     );
   }
-  return (
-    <div className="w-6 h-6 rounded-full border-2 border-[#DAD9D6] bg-white flex-shrink-0" />
-  );
+  return <div className="w-6 h-6 rounded-full bg-white border-[2px] border-[#E5E7EB] flex-shrink-0" />;
 }
 
 export default function FindingDetailPage({ params }: { params: Promise<{ slug: string; id: string }> }) {
   const { slug, id } = use(params);
   const { data } = useData();
-  const router = useRouter();
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
 
   const finding = data.findings.find((f) => f.id === id);
@@ -40,98 +37,91 @@ export default function FindingDetailPage({ params }: { params: Promise<{ slug: 
     if (id) markFindingsSeen(slug, [id]);
   }, [slug, id]);
 
-  if (!finding) {
-    return (
-      <div className="p-8 text-center text-[#939598]">
-        <p>Finding not found.</p>
-        <Link href={`/view/${slug}/findings`} className="text-[#234474] text-sm mt-2 inline-block">← Back to findings</Link>
-      </div>
-    );
-  }
+  if (!finding) return (
+    <div className="p-8 text-center">
+      <p className="text-[#6B7280] text-[15px]">Finding not found.</p>
+      <Link href={`/view/${slug}/findings`} className="text-[#234474] text-[13px] mt-2 inline-block font-medium">← Back to findings</Link>
+    </div>
+  );
 
   const relatedFindings = data.findings.filter((f) => finding.relatedFindingIds.includes(f.id));
-  const isNew = !(data.seenFindings[slug] ?? []).includes(id);
   const findingIndex = data.findings.findIndex((f) => f.id === id);
   const nextFinding = data.findings[findingIndex + 1];
 
   return (
-    <div className="p-8 max-w-[1100px]">
+    <div className="p-8 max-w-[1080px]">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 mb-6 text-[13px]">
-        <Link href={`/view/${slug}/findings`} className="text-[#234474] hover:text-[#1A2D45]">Findings</Link>
-        <span className="text-[#939598]">›</span>
-        <span className="text-[#939598] truncate max-w-[300px]">{finding.title}</span>
-      </div>
+      <nav className="flex items-center gap-1.5 mb-6 text-[12.5px] fade-up">
+        <Link href={`/view/${slug}/findings`} className="text-[#234474] font-medium hover:text-[#000F1E] transition-colors">Findings</Link>
+        <ChevronRight size={13} className="text-[#D1D5DB]" />
+        <span className="text-[#9CA3AF] truncate max-w-[300px]">{finding.title}</span>
+      </nav>
 
-      <div className="flex gap-8">
-        {/* Main content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-3">
-            {isNew && <StatusBadge status="New" />}
+      <div className="flex gap-7">
+        {/* Main */}
+        <div className="flex-1 min-w-0 fade-up fade-up-1">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <StatusBadge status="New" />
             <StatusBadge status={finding.status} />
+            <span className={`text-[12.5px] font-semibold ${finding.severity === 'High' ? 'text-[#BE123C]' : finding.severity === 'Medium' ? 'text-[#C2410C]' : 'text-[#15803D]'}`}>
+              {finding.severity} severity
+            </span>
           </div>
-          <h1 className="text-[32px] font-bold text-[#000F1E] leading-tight mb-2">{finding.title}</h1>
-          <p className="text-[13px] text-[#939598] mb-6">
-            {finding.site} — Added {finding.dateAdded} by {finding.addedBy}
-          </p>
+          <h1 className="text-[26px] font-bold text-[#111827] tracking-[-0.02em] leading-tight mb-2">{finding.title}</h1>
+          <p className="text-[12.5px] text-[#9CA3AF] mb-6">{finding.site} · Added {finding.dateAdded} by {finding.addedBy}</p>
 
-          <p className="text-sm text-[#464A4D] leading-relaxed mb-6">{finding.description}</p>
+          <p className="text-[14px] text-[#4B5563] leading-[1.7] mb-7">{finding.description}</p>
 
           {/* Images */}
-          {finding.images.length > 0 ? (
-            <div className="mb-6">
-              <div className="grid grid-cols-4 gap-3 mb-2">
-                {finding.images.map((img, i) => (
-                  <button key={i} onClick={() => setLightboxImg(img)} className="aspect-[3/4] rounded overflow-hidden border border-[#DAD9D6] hover:border-[#234474] transition-colors">
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-              <p className="text-[12px] text-[#939598]">Click any image to open full-size. Annotated images include marked regions.</p>
+          <div className="mb-8">
+            <div className="grid grid-cols-4 gap-2.5 mb-2">
+              {(finding.images.length > 0 ? finding.images : [null, null, null, null]).map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => img && setLightboxImg(img)}
+                  className="aspect-[3/4] rounded-[10px] overflow-hidden border transition-all duration-200"
+                  style={{ borderColor: 'rgba(0,15,30,0.08)', cursor: img ? 'zoom-in' : 'default' }}
+                >
+                  {img ? (
+                    <img src={img} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                  ) : (
+                    <div className="w-full h-full" style={{ background: 'repeating-linear-gradient(45deg, #F3F4F6 0px, #F3F4F6 1px, #FAFAFA 1px, #FAFAFA 16px)' }} />
+                  )}
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="mb-6">
-              <div className="grid grid-cols-4 gap-3 mb-2">
-                {[0,1,2,3].map((i) => (
-                  <div key={i} className="aspect-[3/4] rounded overflow-hidden border border-[#DAD9D6]">
-                    <div className="w-full h-full" style={{ backgroundImage: 'linear-gradient(45deg, #EFF0F0 25%, transparent 25%), linear-gradient(-45deg, #EFF0F0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #EFF0F0 75%), linear-gradient(-45deg, transparent 75%, #EFF0F0 75%)', backgroundSize: '16px 16px', backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px', backgroundColor: '#F7F7F6' }} />
-                  </div>
-                ))}
-              </div>
-              <p className="text-[12px] text-[#939598]">Click any image to open full-size. Annotated images include marked regions.</p>
-            </div>
-          )}
+            <p className="text-[11.5px] text-[#9CA3AF]">Click any image to open full-size.</p>
+          </div>
 
           {/* Resolution path */}
-          <div className="mb-6">
-            <h2 className="text-[18px] font-semibold text-[#000F1E] mb-1.5">Resolution path</h2>
-            <p className="text-[13px] text-[#939598] mb-5">Steps to resolution — current status tracked below</p>
+          <div
+            className="bg-white rounded-[14px] p-6 mb-6"
+            style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: '1px solid rgba(0,15,30,0.05)' }}
+          >
+            <h2 className="text-[16px] font-bold text-[#111827] tracking-[-0.01em] mb-1">Resolution path</h2>
+            <p className="text-[12.5px] text-[#9CA3AF] mb-6">Steps to resolution — current status tracked below</p>
             <div className="space-y-0">
               {finding.resolutionSteps.map((step, i) => (
-                <div key={step.id} className="flex gap-3">
+                <div key={step.id} className="flex gap-4">
                   <div className="flex flex-col items-center">
                     <StepIcon status={step.status} />
                     {i < finding.resolutionSteps.length - 1 && (
-                      <div className={`w-0.5 flex-1 my-1 ${step.status === 'completed' ? 'bg-[#234474]' : 'bg-[#DAD9D6]'}`} style={{ minHeight: '32px' }} />
+                      <div className="w-px flex-1 my-2" style={{ background: step.status === 'completed' ? '#000F1E' : '#E5E7EB', minHeight: '28px' }} />
                     )}
                   </div>
-                  <div className="pb-6 flex-1 min-w-0">
-                    <p className="text-[12px] font-medium text-[#234474] mb-0.5">Step {step.stepNumber}</p>
-                    <h3 className={`text-[15px] font-semibold mb-1 ${step.status === 'pending' ? 'text-[#939598]' : 'text-[#000F1E]'}`}>
+                  <div className={`pb-6 flex-1 min-w-0 ${i === finding.resolutionSteps.length - 1 ? 'pb-0' : ''}`}>
+                    <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-[0.1em] mb-0.5">Step {step.stepNumber}</p>
+                    <h3 className={`text-[14.5px] font-semibold mb-1 ${step.status === 'pending' ? 'text-[#9CA3AF]' : 'text-[#111827]'}`}>
                       {step.title}
                     </h3>
-                    <p className={`text-[13px] leading-relaxed mb-1 ${step.status === 'pending' ? 'text-[#B7B8B9]' : 'text-[#464A4D]'}`}>
+                    <p className={`text-[13px] leading-relaxed mb-1 ${step.status === 'pending' ? 'text-[#C4C9D0]' : 'text-[#6B7280]'}`}>
                       {step.description}
                     </p>
-                    {step.completedDate && (
-                      <p className="text-[12px] text-[#939598]">Completed {step.completedDate}</p>
-                    )}
+                    {step.completedDate && <p className="text-[11.5px] text-[#9CA3AF]">Completed {step.completedDate}</p>}
                     {step.status === 'in_progress' && !step.completedDate && (
-                      <p className="text-[12px] text-[#1565C0]">In progress — assigned to ABG checkout team</p>
+                      <p className="text-[11.5px] text-[#1D4ED8] font-medium">In progress</p>
                     )}
-                    {step.status === 'pending' && (
-                      <p className="text-[12px] text-[#939598]">Pending</p>
-                    )}
+                    {step.status === 'pending' && <p className="text-[11.5px] text-[#C4C9D0]">Pending</p>}
                   </div>
                 </div>
               ))}
@@ -141,63 +131,57 @@ export default function FindingDetailPage({ params }: { params: Promise<{ slug: 
           {nextFinding && (
             <Link
               href={`/view/${slug}/findings/${nextFinding.id}`}
-              className="inline-flex items-center h-11 px-6 bg-[#000F1E] text-white text-sm font-medium rounded-[4px] hover:bg-[#0D1E35] transition-colors"
+              className="inline-flex items-center gap-2.5 h-11 px-6 rounded-[10px] text-[14px] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 group"
+              style={{ background: '#000F1E', boxShadow: '0 1px 3px rgba(0,15,30,0.2)' }}
             >
-              Next finding →
+              Next finding
+              <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
+                <ArrowRight size={13} strokeWidth={2} />
+              </div>
             </Link>
           )}
         </div>
 
         {/* Sidebar */}
-        <div className="w-72 flex-shrink-0 space-y-6">
-          <div className="border border-[#DAD9D6] rounded-lg p-5 bg-white">
-            <h3 className="text-[15px] font-semibold text-[#000F1E] mb-4">Metadata</h3>
-            <dl className="space-y-3">
-              <div className="flex justify-between items-start">
-                <dt className="text-[12px] font-medium text-[#939598] uppercase tracking-wide">STATUS</dt>
-                <dd><StatusBadge status={finding.status} /></dd>
-              </div>
-              <div className="flex justify-between items-start">
-                <dt className="text-[12px] font-medium text-[#939598] uppercase tracking-wide">SITE</dt>
-                <dd className="text-[13px] text-[#000F1E] font-medium">{finding.site}</dd>
-              </div>
-              <div className="flex justify-between items-start">
-                <dt className="text-[12px] font-medium text-[#939598] uppercase tracking-wide">CATEGORY</dt>
-                <dd className="text-[13px] text-[#000F1E] font-medium text-right max-w-[140px]">{finding.category}</dd>
-              </div>
-              <div className="flex justify-between items-start">
-                <dt className="text-[12px] font-medium text-[#939598] uppercase tracking-wide">SEVERITY</dt>
-                <dd className={`text-[13px] font-semibold ${finding.severity === 'High' ? 'text-[#C62828]' : finding.severity === 'Medium' ? 'text-[#E65100]' : 'text-[#2E7D32]'}`}>
-                  {finding.severity}
-                </dd>
-              </div>
-              <div className="flex justify-between items-start">
-                <dt className="text-[12px] font-medium text-[#939598] uppercase tracking-wide">ADDED BY</dt>
-                <dd className="text-[13px] text-[#000F1E] font-medium">{finding.addedBy}</dd>
-              </div>
-              <div className="flex justify-between items-start">
-                <dt className="text-[12px] font-medium text-[#939598] uppercase tracking-wide">DATE ADDED</dt>
-                <dd className="text-[13px] text-[#000F1E] font-medium">{finding.dateAdded}</dd>
-              </div>
-              <div className="flex justify-between items-start">
-                <dt className="text-[12px] font-medium text-[#939598] uppercase tracking-wide">LAST UPDATED</dt>
-                <dd className="text-[13px] text-[#000F1E] font-medium">{finding.lastUpdated}</dd>
-              </div>
+        <div className="w-[260px] flex-shrink-0 space-y-4 fade-up fade-up-2">
+          <div
+            className="bg-white rounded-[14px] p-5"
+            style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: '1px solid rgba(0,15,30,0.05)' }}
+          >
+            <p className="text-[11.5px] font-bold text-[#374151] mb-4 uppercase tracking-[0.06em]">Metadata</p>
+            <dl className="space-y-3.5">
+              {[
+                { label: 'STATUS', value: <StatusBadge status={finding.status} /> },
+                { label: 'SITE', value: finding.site },
+                { label: 'CATEGORY', value: finding.category },
+                { label: 'SEVERITY', value: <span className={`font-semibold text-[13px] ${finding.severity === 'High' ? 'text-[#BE123C]' : finding.severity === 'Medium' ? 'text-[#C2410C]' : 'text-[#15803D]'}`}>{finding.severity}</span> },
+                { label: 'ADDED BY', value: finding.addedBy },
+                { label: 'DATE ADDED', value: finding.dateAdded },
+                { label: 'LAST UPDATED', value: finding.lastUpdated },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-start justify-between gap-3">
+                  <dt className="text-[11px] font-semibold text-[#9CA3AF] tracking-[0.06em] mt-0.5">{label}</dt>
+                  <dd className="text-[12.5px] text-[#111827] font-medium text-right max-w-[140px]">{value}</dd>
+                </div>
+              ))}
             </dl>
           </div>
 
           {relatedFindings.length > 0 && (
-            <div className="border border-[#DAD9D6] rounded-lg p-5 bg-white">
-              <h3 className="text-[15px] font-semibold text-[#000F1E] mb-4">Related findings</h3>
+            <div
+              className="bg-white rounded-[14px] p-5"
+              style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: '1px solid rgba(0,15,30,0.05)' }}
+            >
+              <p className="text-[11.5px] font-bold text-[#374151] mb-4 uppercase tracking-[0.06em]">Related findings</p>
               {relatedFindings.map((rf) => (
-                <div key={rf.id}>
-                  <p className="text-[14px] font-medium text-[#000F1E] mb-2">{rf.title}</p>
-                  <div className="flex items-center gap-2 mb-1">
+                <div key={rf.id} className="group">
+                  <p className="text-[13.5px] font-semibold text-[#111827] mb-2 leading-snug">{rf.title}</p>
+                  <div className="flex items-center gap-2 mb-2">
                     <StatusBadge status="New" />
                     <StatusBadge status={rf.status} />
                   </div>
-                  <Link href={`/view/${slug}/findings/${rf.id}`} className="text-[13px] text-[#234474] font-medium hover:text-[#1A2D45]">
-                    View detail
+                  <Link href={`/view/${slug}/findings/${rf.id}`} className="text-[12.5px] font-semibold text-[#234474] hover:text-[#000F1E] flex items-center gap-0.5 transition-colors">
+                    View detail <ArrowUpRight size={12} strokeWidth={2} />
                   </Link>
                 </div>
               ))}
@@ -209,12 +193,27 @@ export default function FindingDetailPage({ params }: { params: Promise<{ slug: 
       {/* Lightbox */}
       {lightboxImg && (
         <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-8"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-8"
           onClick={() => setLightboxImg(null)}
         >
-          <img src={lightboxImg} alt="" className="max-w-full max-h-full rounded-lg" />
+          <button
+            className="absolute top-6 right-6 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            onClick={() => setLightboxImg(null)}
+          >
+            <X size={18} />
+          </button>
+          <img src={lightboxImg} alt="" className="max-w-full max-h-full rounded-[14px] shadow-2xl" />
         </div>
       )}
     </div>
+  );
+}
+
+// Missing import
+function ArrowUpRight(props: any) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 16} height={props.size ?? 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth ?? 2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 7h10v10M7 17L17 7"/>
+    </svg>
   );
 }
