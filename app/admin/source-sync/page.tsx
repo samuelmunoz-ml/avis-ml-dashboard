@@ -187,9 +187,9 @@ function AddSourceModal({
           {/* Source name */}
           <div>
             <label className="block text-[12px] font-semibold text-[#374151] mb-1.5 tracking-[0.01em]">Source label</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} onFocus={autoFillName}
+            <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder={meta.label} className={INPUT} style={INPUT_STYLE}
-              onFocus2={(e: any) => { e.target.style.border='1.5px solid #000F1E'; e.target.style.background='#fff'; }}
+              onFocus={(e: any) => { autoFillName(); e.target.style.border='1.5px solid #000F1E'; e.target.style.background='#fff'; }}
               onBlur={(e: any) => { e.target.style.border='1.5px solid #E5E7EB'; e.target.style.background='#F9FAFB'; }}
             />
             <p className="text-[11px] text-[#9CA3AF] mt-1">Used in the admin panel only — not shown to viewers.</p>
@@ -214,9 +214,9 @@ function AddSourceModal({
           {/* Tab name */}
           <div>
             <label className="block text-[12px] font-semibold text-[#374151] mb-1.5 tracking-[0.01em]">Tab name</label>
-            <input type="text" value={tabName} onChange={e => setTabName(e.target.value)} onFocus={autoFillTab}
+            <input type="text" value={tabName} onChange={e => setTabName(e.target.value)}
               placeholder={meta.defaultTab} className={INPUT + ' font-mono text-[12.5px]'} style={INPUT_STYLE}
-              onFocus2={(e: any) => { e.target.style.border='1.5px solid #000F1E'; e.target.style.background='#fff'; }}
+              onFocus={(e: any) => { autoFillTab(); e.target.style.border='1.5px solid #000F1E'; e.target.style.background='#fff'; }}
               onBlur={(e: any) => { e.target.style.border='1.5px solid #E5E7EB'; e.target.style.background='#F9FAFB'; }}
             />
             <p className="text-[11px] text-[#9CA3AF] mt-1">The exact name of the sheet tab containing this data.</p>
