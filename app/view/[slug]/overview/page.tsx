@@ -4,6 +4,37 @@ import Link from 'next/link';
 import { useData } from '@/lib/store';
 import StatusBadge from '@/components/StatusBadge';
 import { TrendingUp, TrendingDown, Minus, ArrowUpRight, ChevronRight } from 'lucide-react';
+import {
+  GanttProvider,
+  GanttSidebar,
+  GanttSidebarGroup,
+  GanttSidebarItem,
+  GanttTimeline,
+  GanttHeader,
+  GanttFeatureList,
+  GanttFeatureListGroup,
+  GanttFeatureItem,
+  GanttToday,
+  type GanttFeature,
+} from '@/components/GanttChart';
+
+const PHASE_COLORS: Record<string, string> = {
+  'tp-1': '#3B82F6',
+  'tp-2': '#8B5CF6',
+  'tp-3': '#10B981',
+  'tp-4': '#F97316',
+  'tp-5': '#06B6D4',
+};
+
+const MONTHS: Record<string, number> = {
+  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+};
+
+function parseDate(str: string): Date {
+  const [month, day] = str.split(' ');
+  return new Date(2026, MONTHS[month], parseInt(day));
+}
 
 function MetricCard({
   label,
@@ -206,7 +237,7 @@ export default function OverviewPage({ params }: { params: Promise<{ slug: strin
         </div>
       </section>
 
-      {/* Timeline snapshot */}
+      {/* Timeline — Gantt */}
       <section className="fade-up fade-up-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[12px] font-semibold text-[#9CA3AF] uppercase tracking-[0.1em]">Timeline</p>
@@ -215,42 +246,52 @@ export default function OverviewPage({ params }: { params: Promise<{ slug: strin
           </Link>
         </div>
         <div
-          className="bg-white rounded-[14px] p-5"
-          style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06), 0 1px 2px rgba(0,15,30,0.04)', border: '1px solid rgba(0,15,30,0.05)' }}
+          className="bg-white rounded-[14px] overflow-hidden"
+          style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06), 0 1px 2px rgba(0,15,30,0.04)', border: '1px solid rgba(0,15,30,0.05)', height: '300px' }}
         >
-          <div className="flex items-center gap-4 mb-5 text-[11.5px] text-[#9CA3AF]">
-            {[
-              { label: 'Completed', color: '#22C55E' },
-              { label: 'In Progress', color: '#3B82F6' },
-              { label: 'Upcoming', color: '#E5E7EB' },
-            ].map((l) => (
-              <span key={l.label} className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
-                {l.label}
-              </span>
-            ))}
-            <span className="flex items-center gap-1.5">
-              <span className="w-0.5 h-3 bg-[#F43F5E] rounded" />
-              Today
-            </span>
-          </div>
-          <div className="space-y-2.5">
-            {data.timelinePhases.map((phase) => (
-              <div key={phase.id} className="flex items-center gap-4">
-                <span className="w-28 text-[12.5px] font-medium text-[#374151] text-right shrink-0">{phase.name}</span>
-                <div className="flex-1 h-[6px] bg-[#F3F4F6] rounded-full relative overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: phase.status === 'completed' ? '100%' : phase.status === 'in_progress' ? '45%' : '0%',
-                      background: phase.status === 'completed' ? '#22C55E' : phase.status === 'in_progress' ? '#3B82F6' : '#E5E7EB',
-                    }}
-                  />
-                </div>
-                <span className="w-32 text-[11px] text-[#9CA3AF] shrink-0">{phase.startDate} – {phase.endDate}</span>
-              </div>
-            ))}
-          </div>
+          <GanttProvider range="monthly" zoom={70}>
+            <GanttSidebar>
+              <GanttSidebarGroup name="Phases">
+                {data.timelinePhases.map((phase) => {
+                  const feature: GanttFeature = {
+                    id: phase.id,
+                    name: phase.name,
+                    startAt: parseDate(phase.startDate),
+                    endAt: parseDate(phase.endDate),
+                    status: { id: phase.id, name: phase.name, color: PHASE_COLORS[phase.id] ?? '#6B7280' },
+                  };
+                  return <GanttSidebarItem key={phase.id} feature={feature} />;
+                })}
+              </GanttSidebarGroup>
+            </GanttSidebar>
+            <GanttTimeline>
+              <GanttHeader />
+              <GanttFeatureList>
+                <GanttFeatureListGroup>
+                  {data.timelinePhases.map((phase) => {
+                    const feature: GanttFeature = {
+                      id: phase.id,
+                      name: phase.name,
+                      startAt: parseDate(phase.startDate),
+                      endAt: parseDate(phase.endDate),
+                      status: { id: phase.id, name: phase.name, color: PHASE_COLORS[phase.id] ?? '#6B7280' },
+                    };
+                    return (
+                      <GanttFeatureItem key={phase.id} {...feature}>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: feature.status.color }} />
+                          <span className="text-[11px] font-semibold truncate" style={{ color: feature.status.color }}>
+                            {phase.name}
+                          </span>
+                        </div>
+                      </GanttFeatureItem>
+                    );
+                  })}
+                </GanttFeatureListGroup>
+              </GanttFeatureList>
+              <GanttToday />
+            </GanttTimeline>
+          </GanttProvider>
         </div>
       </section>
     </div>
