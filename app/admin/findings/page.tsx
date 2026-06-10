@@ -1,12 +1,21 @@
 'use client';
 import { useState, useRef, useCallback } from 'react';
 import { useData } from '@/lib/store';
-import { Finding, FindingStatus, Severity, ResolutionStep } from '@/lib/types';
+import { Finding, FindingStatus, Severity } from '@/lib/types';
 import StatusBadge from '@/components/StatusBadge';
+import { Pin, Pencil, Trash2, Upload, X, Plus, RefreshCw, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 
 const STATUSES: FindingStatus[] = ['Reported', 'Acknowledged', 'Fix in progress', 'Resolved'];
 const SEVERITIES: Severity[] = ['High', 'Medium', 'Low'];
 const SITES = ['avis.com', 'budget.com', 'payless.com'];
+
+const CARD_STYLE = {
+  boxShadow: '0 1px 3px rgba(0,15,30,0.06), 0 1px 2px rgba(0,15,30,0.04)',
+  border: '1px solid rgba(0,15,30,0.05)',
+};
+
+const INPUT_BASE = 'w-full h-10 px-3.5 rounded-[10px] text-[13.5px] text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all duration-200 bg-[#F9FAFB]';
+const INPUT_STYLE = { border: '1.5px solid #E5E7EB' };
 
 function generateId() {
   return 'f-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -21,9 +30,7 @@ export default function AdminFindingsPage() {
   const [severity, setSeverity] = useState<Severity>('High');
   const [status, setStatus] = useState<FindingStatus>('Reported');
   const [images, setImages] = useState<string[]>([]);
-  const [steps, setSteps] = useState<{ title: string; description: string }[]>([
-    { title: '', description: '' },
-  ]);
+  const [steps, setSteps] = useState([{ title: '', description: '' }]);
   const [toast, setToast] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,9 +44,7 @@ export default function AdminFindingsPage() {
     Array.from(files).forEach((file) => {
       if (!file.type.startsWith('image/')) return;
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setImages((prev) => [...prev, e.target?.result as string]);
-      };
+      reader.onload = (e) => setImages((prev) => [...prev, e.target?.result as string]);
       reader.readAsDataURL(file);
     });
   }
@@ -51,10 +56,9 @@ export default function AdminFindingsPage() {
   }, []);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items;
-    const imageItem = Array.from(items).find((item) => item.type.startsWith('image/'));
-    if (imageItem) {
-      const file = imageItem.getAsFile();
+    const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'));
+    if (item) {
+      const file = item.getAsFile();
       if (file) {
         const reader = new FileReader();
         reader.onload = (ev) => setImages((prev) => [...prev, ev.target?.result as string]);
@@ -64,17 +68,12 @@ export default function AdminFindingsPage() {
   }, []);
 
   function handleSave() {
-    if (!title.trim() || !description.trim()) {
-      showToast('Title and description are required.');
-      return;
-    }
+    if (!title.trim() || !description.trim()) { showToast('Title and description are required.'); return; }
     const newFinding: Finding = {
       id: generateId(),
       title: title.trim(),
       description: description.trim(),
-      site,
-      severity,
-      status,
+      site, severity, status,
       category: 'Manual entry',
       addedBy: 'Admin',
       dateAdded: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -82,33 +81,19 @@ export default function AdminFindingsPage() {
       images,
       isPinned: false,
       relatedFindingIds: [],
-      resolutionSteps: steps
-        .filter((s) => s.title.trim())
-        .map((s, i) => ({
-          id: generateId(),
-          stepNumber: i + 1,
-          title: s.title.trim(),
-          description: s.description.trim(),
-          status: 'pending',
-        })),
+      resolutionSteps: steps.filter((s) => s.title.trim()).map((s, i) => ({
+        id: generateId(), stepNumber: i + 1,
+        title: s.title.trim(), description: s.description.trim(), status: 'pending',
+      })),
     };
     setData({ ...data, findings: [newFinding, ...data.findings] });
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setSite('avis.com');
-    setSeverity('High');
-    setStatus('Reported');
-    setImages([]);
-    setSteps([{ title: '', description: '' }]);
+    setTitle(''); setDescription(''); setSite('avis.com'); setSeverity('High');
+    setStatus('Reported'); setImages([]); setSteps([{ title: '', description: '' }]);
     showToast('Finding saved.');
   }
 
   function togglePin(id: string) {
-    setData({
-      ...data,
-      findings: data.findings.map((f) => (f.id === id ? { ...f, isPinned: !f.isPinned } : f)),
-    });
+    setData({ ...data, findings: data.findings.map((f) => f.id === id ? { ...f, isPinned: !f.isPinned } : f) });
   }
 
   function deleteFinding(id: string) {
@@ -116,197 +101,196 @@ export default function AdminFindingsPage() {
     setData({ ...data, findings: data.findings.filter((f) => f.id !== id) });
   }
 
+  const syncSources = [
+    { name: 'Experiments pipeline', detail: 'experiments-tracker.gsheet · 18 rows', status: 'synced' },
+    { name: 'KPI metrics',          detail: 'ml-kpi-dashboard.gsheet · 6 rows',     status: 'syncing' },
+    { name: 'Anomaly data',         detail: 'anomaly-tracking.gsheet · 142 rows',   status: 'stale' },
+    { name: 'Timeline milestones',  detail: 'engagement-timeline.gsheet',           status: 'error' },
+  ];
+
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-[32px] font-bold text-[#000F1E]">Findings</h1>
-        <p className="text-sm text-[#939598] mt-1">Add, edit, and pin findings. Pinned findings appear on the main dashboard widget.</p>
+      {/* Header */}
+      <div className="mb-6 fade-up">
+        <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-[0.12em] mb-1">Admin · Content</p>
+        <h1 className="text-[28px] font-bold text-[#111827] tracking-[-0.025em]">Findings</h1>
+        <p className="text-[13px] text-[#9CA3AF] mt-0.5">Add, edit, and pin findings. Pinned findings appear on the main dashboard widget.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#DAD9D6] mb-8">
-        <button
-          onClick={() => setTab('add')}
-          className={`px-1 pb-3 mr-6 text-sm font-medium border-b-2 transition-colors ${tab === 'add' ? 'border-[#234474] text-[#234474]' : 'border-transparent text-[#939598] hover:text-[#464A4D]'}`}
-        >
-          + ADD FINDINGS
-        </button>
-        <button
-          onClick={() => setTab('all')}
-          className={`px-1 pb-3 text-sm font-medium border-b-2 transition-colors ${tab === 'all' ? 'border-[#234474] text-[#234474]' : 'border-transparent text-[#939598] hover:text-[#464A4D]'}`}
-        >
-          ALL FINDINGS ({data.findings.length})
-        </button>
+      <div className="flex gap-1 mb-7 bg-white rounded-[12px] p-1 w-fit fade-up fade-up-1" style={CARD_STYLE}>
+        {[
+          { key: 'add', label: '+ Add finding' },
+          { key: 'all', label: `All findings (${data.findings.length})` },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key as 'add' | 'all')}
+            className={`px-4 h-8 rounded-[8px] text-[13px] font-medium transition-all ${
+              tab === t.key ? 'bg-[#000F1E] text-white' : 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {tab === 'add' && (
-        <div className="flex gap-8">
-          {/* Create form */}
-          <div className="flex-1 max-w-xl">
-            <div className="border border-[#DAD9D6] rounded-lg p-6 bg-white" onPaste={handlePaste}>
-              <h2 className="text-[18px] font-semibold text-[#000F1E] mb-6">Create new finding</h2>
+        <div className="flex gap-6 fade-up fade-up-2">
+          {/* Form */}
+          <div className="flex-1 max-w-[560px]">
+            <div className="bg-white rounded-[14px] p-6" style={CARD_STYLE} onPaste={handlePaste}>
+              <h2 className="text-[17px] font-bold text-[#111827] tracking-[-0.01em] mb-5">Create new finding</h2>
 
-              <div className="mb-4">
-                <label className="block text-[13px] font-medium text-[#000F1E] mb-1.5">Title <span className="text-[#C62828]">*</span></label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Finding title"
-                  className="w-full h-[42px] px-3.5 border border-[#DAD9D6] rounded-[4px] text-sm text-[#000F1E] placeholder:text-[#B7B8B9] outline-none focus:border-[#000F1E]"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-[13px] font-medium text-[#000F1E] mb-1.5">Description <span className="text-[#C62828]">*</span></label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe the finding in 1–3 sentences"
-                  rows={4}
-                  className="w-full px-3.5 py-2.5 border border-[#DAD9D6] rounded-[4px] text-sm text-[#000F1E] placeholder:text-[#B7B8B9] outline-none focus:border-[#000F1E] resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-[13px] font-medium text-[#000F1E] mb-1.5">Site / area</label>
-                  <select
-                    value={site}
-                    onChange={(e) => setSite(e.target.value)}
-                    className="w-full h-[42px] px-3.5 border border-[#DAD9D6] rounded-[4px] text-sm text-[#000F1E] outline-none focus:border-[#000F1E] bg-white"
-                  >
-                    {SITES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
+                  <label className="block text-[12px] font-semibold text-[#374151] mb-1.5 tracking-[0.01em]">Title <span className="text-[#F43F5E]">*</span></label>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Finding title" className={INPUT_BASE} style={INPUT_STYLE}
+                    onFocus={(e) => { e.target.style.border = '1.5px solid #000F1E'; e.target.style.boxShadow = '0 0 0 3px rgba(0,15,30,0.06)'; e.target.style.background = '#fff'; }}
+                    onBlur={(e) => { e.target.style.border = '1.5px solid #E5E7EB'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F9FAFB'; }}
+                  />
                 </div>
+
                 <div>
-                  <label className="block text-[13px] font-medium text-[#000F1E] mb-1.5">Severity</label>
-                  <select
-                    value={severity}
-                    onChange={(e) => setSeverity(e.target.value as Severity)}
-                    className="w-full h-[42px] px-3.5 border border-[#DAD9D6] rounded-[4px] text-sm text-[#000F1E] outline-none focus:border-[#000F1E] bg-white"
-                  >
-                    {SEVERITIES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
+                  <label className="block text-[12px] font-semibold text-[#374151] mb-1.5 tracking-[0.01em]">Description <span className="text-[#F43F5E]">*</span></label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Describe the finding in 1–3 sentences" rows={3}
+                    className="w-full px-3.5 py-2.5 rounded-[10px] text-[13.5px] text-[#111827] placeholder:text-[#9CA3AF] outline-none resize-none transition-all duration-200 bg-[#F9FAFB]"
+                    style={INPUT_STYLE}
+                    onFocus={(e) => { e.target.style.border = '1.5px solid #000F1E'; e.target.style.boxShadow = '0 0 0 3px rgba(0,15,30,0.06)'; e.target.style.background = '#fff'; }}
+                    onBlur={(e) => { e.target.style.border = '1.5px solid #E5E7EB'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F9FAFB'; }}
+                  />
                 </div>
-              </div>
 
-              <div className="mb-5">
-                <label className="block text-[13px] font-medium text-[#000F1E] mb-2">Status</label>
-                <div className="flex flex-wrap gap-2">
-                  {STATUSES.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setStatus(s)}
-                      className={`transition-all ${status === s ? 'ring-2 ring-[#000F1E] ring-offset-1 rounded-full' : ''}`}
-                    >
-                      <StatusBadge status={s} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Image upload */}
-              <div className="mb-5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => e.target.files && processFiles(e.target.files)}
-                />
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragging ? 'border-[#234474] bg-[#E8ECF1]' : 'border-[#DAD9D6] hover:border-[#939598]'}`}
-                >
-                  <div className="w-10 h-10 rounded-full border border-[#DAD9D6] flex items-center justify-center mx-auto mb-2">
-                    <svg className="w-5 h-5 text-[#939598]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1.5 tracking-[0.01em]">Site / area</label>
+                    <select value={site} onChange={(e) => setSite(e.target.value)}
+                      className={INPUT_BASE + ' bg-[#F9FAFB]'} style={INPUT_STYLE}>
+                      {SITES.map((s) => <option key={s}>{s}</option>)}
+                    </select>
                   </div>
-                  <p className="text-sm text-[#464A4D] mb-1">Drag and drop photos here</p>
-                  <p className="text-[12px] text-[#939598] mb-3">or click to browse your files</p>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                    className="h-9 px-4 bg-[#000F1E] text-white text-[13px] font-medium rounded-[4px] hover:bg-[#0D1E35] transition-colors"
-                  >
-                    Choose Photos
-                  </button>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1.5 tracking-[0.01em]">Severity</label>
+                    <select value={severity} onChange={(e) => setSeverity(e.target.value as Severity)}
+                      className={INPUT_BASE + ' bg-[#F9FAFB]'} style={INPUT_STYLE}>
+                      {SEVERITIES.map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <p className="text-[11px] text-[#939598] mt-1.5">Tip: paste screenshots with ⌘V anywhere in this form</p>
-                {images.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {images.map((img, i) => (
-                      <div key={i} className="relative">
-                        <img src={img} alt="" className="w-16 h-16 object-cover rounded border border-[#DAD9D6]" />
-                        <button
-                          onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
-                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#C62828] text-white rounded-full text-[10px] flex items-center justify-center"
-                        >×</button>
+
+                {/* Status picker */}
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#374151] mb-2 tracking-[0.01em]">Status</label>
+                  <div className="flex flex-wrap gap-2">
+                    {STATUSES.map((s) => (
+                      <button key={s} onClick={() => setStatus(s)}
+                        className={`transition-all duration-200 rounded-full ${status === s ? 'ring-2 ring-offset-1 ring-[#000F1E]' : ''}`}>
+                        <StatusBadge status={s} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Image upload */}
+                <div>
+                  <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden"
+                    onChange={(e) => e.target.files && processFiles(e.target.files)} />
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`rounded-[12px] p-6 text-center cursor-pointer transition-all duration-200 ${
+                      isDragging ? 'bg-[#EFF6FF]' : 'bg-[#F9FAFB] hover:bg-[#F3F4F6]'
+                    }`}
+                    style={{ border: isDragging ? '2px dashed #3B82F6' : '2px dashed #E5E7EB' }}
+                  >
+                    <div className="w-9 h-9 rounded-[10px] bg-white flex items-center justify-center mx-auto mb-2.5" style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.1)' }}>
+                      <Upload size={16} strokeWidth={1.75} className="text-[#6B7280]" />
+                    </div>
+                    <p className="text-[13.5px] font-medium text-[#374151] mb-0.5">Drag and drop photos here</p>
+                    <p className="text-[12px] text-[#9CA3AF] mb-3">or click to browse · ⌘V to paste</p>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                      className="h-8 px-4 rounded-[8px] text-[12.5px] font-semibold text-white bg-[#000F1E] hover:bg-[#0D1E35] transition-colors"
+                    >
+                      Choose photos
+                    </button>
+                  </div>
+                  {images.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {images.map((img, i) => (
+                        <div key={i} className="relative group">
+                          <img src={img} alt="" className="w-14 h-14 object-cover rounded-[8px]" style={{ border: '1px solid rgba(0,15,30,0.08)' }} />
+                          <button
+                            onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#BE123C] text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X size={10} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Resolution steps */}
+                <div>
+                  <h3 className="text-[14px] font-bold text-[#111827] mb-0.5">Resolution path</h3>
+                  <p className="text-[12.5px] text-[#9CA3AF] mb-4">Steps to resolution — current status tracked below</p>
+                  <div className="space-y-0">
+                    {steps.map((step, i) => (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex flex-col items-center pt-0.5">
+                          <div className="w-5 h-5 rounded-full bg-white border-2 border-[#E5E7EB] flex-shrink-0" />
+                          {i < steps.length - 1 && <div className="w-px flex-1 bg-[#E5E7EB] my-1.5" style={{ minHeight: '20px' }} />}
+                        </div>
+                        <div className="flex-1 pb-4 space-y-2">
+                          <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-[0.1em]">Step {i + 1}</p>
+                          <input type="text" value={step.title}
+                            onChange={(e) => setSteps((prev) => prev.map((s, j) => j === i ? { ...s, title: e.target.value } : s))}
+                            placeholder="Step title"
+                            className="w-full h-9 px-3 rounded-[8px] text-[13px] text-[#111827] placeholder:text-[#9CA3AF] outline-none bg-[#F9FAFB] transition-all"
+                            style={{ border: '1.5px solid #E5E7EB' }}
+                            onFocus={(e) => { e.target.style.border = '1.5px solid #000F1E'; e.target.style.background = '#fff'; }}
+                            onBlur={(e) => { e.target.style.border = '1.5px solid #E5E7EB'; e.target.style.background = '#F9FAFB'; }}
+                          />
+                          <input type="text" value={step.description}
+                            onChange={(e) => setSteps((prev) => prev.map((s, j) => j === i ? { ...s, description: e.target.value } : s))}
+                            placeholder="Description"
+                            className="w-full h-9 px-3 rounded-[8px] text-[13px] text-[#111827] placeholder:text-[#9CA3AF] outline-none bg-[#F9FAFB] transition-all"
+                            style={{ border: '1.5px solid #E5E7EB' }}
+                            onFocus={(e) => { e.target.style.border = '1.5px solid #000F1E'; e.target.style.background = '#fff'; }}
+                            onBlur={(e) => { e.target.style.border = '1.5px solid #E5E7EB'; e.target.style.background = '#F9FAFB'; }}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-
-              {/* Resolution steps */}
-              <div className="mb-6">
-                <h3 className="text-[15px] font-semibold text-[#000F1E] mb-1">Resolution path</h3>
-                <p className="text-[13px] text-[#939598] mb-4">Steps to resolution — current status tracked below</p>
-                <div className="space-y-4">
-                  {steps.map((step, i) => (
-                    <div key={i} className="flex gap-3">
-                      <div className="flex flex-col items-center mt-1">
-                        <div className="w-5 h-5 rounded-full border-2 border-[#DAD9D6] bg-white flex-shrink-0" />
-                        {i < steps.length - 1 && <div className="w-0.5 flex-1 bg-[#DAD9D6] my-1" style={{ minHeight: '20px' }} />}
-                      </div>
-                      <div className="flex-1 space-y-2 pb-2">
-                        <p className="text-[12px] font-medium text-[#234474]">Step {i + 1}</p>
-                        <div>
-                          <label className="block text-[12px] font-medium text-[#000F1E] mb-1">Title <span className="text-[#C62828]">*</span></label>
-                          <input
-                            type="text"
-                            value={step.title}
-                            onChange={(e) => setSteps((prev) => prev.map((s, j) => j === i ? { ...s, title: e.target.value } : s))}
-                            className="w-full h-9 px-3 border border-[#DAD9D6] rounded-[4px] text-[13px] outline-none focus:border-[#000F1E]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[12px] font-medium text-[#000F1E] mb-1">Description <span className="text-[#C62828]">*</span></label>
-                          <input
-                            type="text"
-                            value={step.description}
-                            onChange={(e) => setSteps((prev) => prev.map((s, j) => j === i ? { ...s, description: e.target.value } : s))}
-                            className="w-full h-9 px-3 border border-[#DAD9D6] rounded-[4px] text-[13px] outline-none focus:border-[#000F1E]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <button
+                    onClick={() => setSteps((prev) => [...prev, { title: '', description: '' }])}
+                    className="flex items-center gap-1.5 text-[13px] font-semibold text-[#234474] hover:text-[#000F1E] transition-colors"
+                  >
+                    <Plus size={13} strokeWidth={2.5} /> Add step
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSteps((prev) => [...prev, { title: '', description: '' }])}
-                  className="text-[13px] text-[#234474] font-medium hover:text-[#1A2D45] mt-2"
-                >
-                  + Add step
-                </button>
               </div>
 
-              <div className="flex justify-end gap-3">
+              {/* Actions */}
+              <div className="flex justify-end gap-2.5 mt-6 pt-5" style={{ borderTop: '1px solid rgba(0,15,30,0.06)' }}>
                 <button
                   onClick={() => { setTitle(''); setDescription(''); setImages([]); setSteps([{ title: '', description: '' }]); }}
-                  className="h-11 px-6 border border-[#DAD9D6] text-[#000F1E] text-sm font-medium rounded-[4px] hover:bg-[#F7F7F6] transition-colors"
+                  className="h-10 px-5 rounded-[10px] text-[13.5px] font-semibold text-[#374151] transition-colors hover:bg-[#F3F4F6]"
+                  style={{ border: '1px solid rgba(0,15,30,0.1)' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
-                  className="h-11 px-6 bg-[#000F1E] text-white text-sm font-medium rounded-[4px] hover:bg-[#0D1E35] transition-colors"
+                  className="h-10 px-5 rounded-[10px] text-[13.5px] font-semibold text-white bg-[#000F1E] hover:bg-[#0D1E35] transition-colors"
                 >
                   Save finding
                 </button>
@@ -315,30 +299,28 @@ export default function AdminFindingsPage() {
           </div>
 
           {/* Right panel */}
-          <div className="w-80 flex-shrink-0 space-y-6">
+          <div className="w-72 flex-shrink-0 space-y-4">
             {/* Recent findings */}
-            <div className="border border-[#DAD9D6] rounded-lg p-5 bg-white">
-              <h3 className="text-[15px] font-semibold text-[#000F1E] mb-4">Recent findings</h3>
-              <div className="space-y-4">
+            <div className="bg-white rounded-[14px] p-5" style={CARD_STYLE}>
+              <p className="text-[11.5px] font-bold text-[#374151] uppercase tracking-[0.06em] mb-4">Recent findings</p>
+              <div className="space-y-3">
                 {data.findings.slice(0, 3).map((f) => (
-                  <div key={f.id} className="flex items-start justify-between gap-2">
+                  <div key={f.id} className="flex items-start justify-between gap-2 pb-3" style={{ borderBottom: '1px solid rgba(0,15,30,0.05)' }}>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-[#000F1E] mb-0.5 leading-snug">{f.title}</p>
-                      <p className="text-[12px] text-[#939598]">{f.site} · {f.status} · {f.dateAdded}</p>
+                      <p className="text-[12.5px] font-semibold text-[#111827] mb-0.5 leading-snug line-clamp-1">{f.title}</p>
+                      <p className="text-[11.5px] text-[#9CA3AF]">{f.site} · {f.dateAdded}</p>
                     </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      <button
-                        onClick={() => togglePin(f.id)}
-                        title={f.isPinned ? 'Unpin' : 'Pin to dashboard'}
-                        className={`w-7 h-7 border rounded flex items-center justify-center text-[12px] transition-colors ${f.isPinned ? 'border-[#E65100] text-[#E65100]' : 'border-[#DAD9D6] text-[#939598] hover:border-[#E65100]'}`}
-                      >
-                        📌
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button onClick={() => togglePin(f.id)} title={f.isPinned ? 'Unpin' : 'Pin'}
+                        className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${f.isPinned ? 'bg-[#FFF7ED] text-[#C2410C]' : 'bg-[#F9FAFB] text-[#9CA3AF] hover:text-[#C2410C]'}`}
+                        style={{ border: f.isPinned ? '1px solid #FED7AA' : '1px solid rgba(0,15,30,0.07)' }}>
+                        <Pin size={11} strokeWidth={2} />
                       </button>
-                      <button className="w-7 h-7 border border-[#DAD9D6] rounded flex items-center justify-center text-[12px] text-[#939598] hover:border-[#000F1E] transition-colors">✏️</button>
-                      <button
-                        onClick={() => deleteFinding(f.id)}
-                        className="w-7 h-7 border border-[#FFCDD2] rounded flex items-center justify-center text-[12px] text-[#C62828] hover:bg-[#FFEBEE] transition-colors"
-                      >🗑️</button>
+                      <button onClick={() => deleteFinding(f.id)}
+                        className="w-7 h-7 rounded-[6px] bg-[#F9FAFB] flex items-center justify-center text-[#9CA3AF] hover:text-[#BE123C] hover:bg-[#FFF1F2] transition-all"
+                        style={{ border: '1px solid rgba(0,15,30,0.07)' }}>
+                        <Trash2 size={11} strokeWidth={1.75} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -346,30 +328,47 @@ export default function AdminFindingsPage() {
             </div>
 
             {/* Source sync */}
-            <div className="border border-[#DAD9D6] rounded-lg p-5 bg-white">
-              <h3 className="text-[15px] font-semibold text-[#000F1E] mb-1">Source sync</h3>
-              <p className="text-[12px] text-[#939598] mb-4">Connected Google Sheets. Sync manually or wait for auto-sync every 6 hours.</p>
+            <div className="bg-white rounded-[14px] p-5" style={CARD_STYLE}>
+              <p className="text-[11.5px] font-bold text-[#374151] uppercase tracking-[0.06em] mb-1">Source sync</p>
+              <p className="text-[12px] text-[#9CA3AF] mb-4">Google Sheets · auto-syncs every 6 hours</p>
               <div className="space-y-3">
-                {[
-                  { name: 'Experiments pipeline', detail: 'experiments-tracker.gsheet · 18 rows', status: 'synced', label: 'Sync' },
-                  { name: 'KPI metrics', detail: 'ml-kpi-dashboard.gsheet · 6 rows', status: 'syncing', label: 'Syncing...' },
-                  { name: 'Anomaly data', detail: 'anomaly-tracking.gsheet · 142 rows', status: 'stale', label: 'Sync' },
-                  { name: 'Timeline milestones', detail: 'engagement-timeline.gsheet', status: 'error', label: 'Reconnect' },
-                ].map((source) => (
-                  <div key={source.name} className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[13px] font-medium ${source.status === 'error' ? 'text-[#C62828]' : 'text-[#000F1E]'}`}>{source.name}</p>
-                      <p className="text-[11px] text-[#939598]">{source.detail}</p>
-                      {source.status === 'synced' && <p className="text-[11px] text-[#2E7D32]">Synced · Today 8:14 am</p>}
-                      {source.status === 'stale' && <p className="text-[11px] text-[#E65100]">Stale · Last synced Jun 28 — 3 days ago</p>}
-                      {source.status === 'error' && <p className="text-[11px] text-[#C62828]">Error · Permissions revoked — re-connect required</p>}
-                      {source.status === 'syncing' && <p className="text-[11px] text-[#1565C0]">Syncing now...</p>}
+                {syncSources.map((source) => {
+                  const Icon = source.status === 'error' ? AlertTriangle
+                    : source.status === 'synced' ? CheckCircle
+                    : source.status === 'syncing' ? RefreshCw
+                    : Clock;
+                  const iconColor = source.status === 'error' ? '#BE123C' : source.status === 'synced' ? '#15803D' : source.status === 'syncing' ? '#1D4ED8' : '#C2410C';
+                  const btnLabel = source.status === 'error' ? 'Reconnect' : source.status === 'syncing' ? 'Syncing…' : 'Sync';
+
+                  return (
+                    <div key={source.name} className="flex items-center justify-between gap-2">
+                      <div className="flex items-start gap-2 min-w-0 flex-1">
+                        <Icon size={13} strokeWidth={1.75} className={`mt-0.5 flex-shrink-0 ${source.status === 'syncing' ? 'animate-spin' : ''}`} style={{ color: iconColor }} />
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-semibold text-[#111827] leading-none mb-0.5">{source.name}</p>
+                          <p className="text-[11px] text-[#9CA3AF] truncate">{source.detail}</p>
+                          {source.status === 'synced'   && <p className="text-[10.5px] text-[#15803D] font-medium mt-0.5">Synced · Today 8:14am</p>}
+                          {source.status === 'stale'    && <p className="text-[10.5px] text-[#C2410C] font-medium mt-0.5">Stale · Jun 28 — 3 days ago</p>}
+                          {source.status === 'error'    && <p className="text-[10.5px] text-[#BE123C] font-medium mt-0.5">Permissions revoked</p>}
+                          {source.status === 'syncing'  && <p className="text-[10.5px] text-[#1D4ED8] font-medium mt-0.5">Syncing now…</p>}
+                        </div>
+                      </div>
+                      <button
+                        className={`h-7 px-3 rounded-[7px] text-[11.5px] font-semibold flex-shrink-0 transition-colors ${
+                          source.status === 'error'
+                            ? 'bg-[#FFF1F2] text-[#BE123C] hover:bg-[#FFE4E6]'
+                            : source.status === 'syncing'
+                            ? 'bg-[#F9FAFB] text-[#9CA3AF] cursor-not-allowed'
+                            : 'bg-[#F9FAFB] text-[#374151] hover:bg-[#F3F4F6]'
+                        }`}
+                        style={{ border: '1px solid rgba(0,15,30,0.08)' }}
+                        disabled={source.status === 'syncing'}
+                      >
+                        {btnLabel}
+                      </button>
                     </div>
-                    <button className={`h-7 px-3 border rounded text-[12px] font-medium flex-shrink-0 transition-colors ${source.status === 'error' ? 'border-[#C62828] text-[#C62828] hover:bg-[#FFEBEE]' : 'border-[#DAD9D6] text-[#464A4D] hover:border-[#000F1E]'}`}>
-                      {source.label}
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -377,40 +376,43 @@ export default function AdminFindingsPage() {
       )}
 
       {tab === 'all' && (
-        <div className="space-y-3">
+        <div className="space-y-2 fade-up fade-up-2">
           {data.findings.map((f) => (
-            <div key={f.id} className="border border-[#DAD9D6] rounded-lg p-4 bg-white flex items-start justify-between gap-4">
+            <div key={f.id} className="bg-white rounded-[14px] px-5 py-4 flex items-start justify-between gap-4 transition-all duration-200 hover:shadow-[0_4px_12px_rgba(0,15,30,0.08)]" style={CARD_STYLE}>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1.5">
                   <StatusBadge status={f.status} />
-                  {f.isPinned && <span className="text-[11px] text-[#E65100] font-medium">📌 Pinned</span>}
+                  {f.isPinned && (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-[#C2410C]">
+                      <Pin size={10} strokeWidth={2} /> Pinned
+                    </span>
+                  )}
                 </div>
-                <h3 className="text-[14px] font-semibold text-[#000F1E] mb-0.5">{f.title}</h3>
-                <p className="text-[12px] text-[#939598]">{f.site} · {f.severity} · Added {f.dateAdded} by {f.addedBy}</p>
+                <h3 className="text-[14px] font-semibold text-[#111827] mb-0.5 leading-snug">{f.title}</h3>
+                <p className="text-[12px] text-[#9CA3AF]">{f.site} · {f.severity} · Added {f.dateAdded} by {f.addedBy}</p>
               </div>
-              <div className="flex gap-1.5 flex-shrink-0">
-                <button
-                  onClick={() => togglePin(f.id)}
-                  title={f.isPinned ? 'Unpin' : 'Pin to dashboard'}
-                  className={`w-8 h-8 border rounded flex items-center justify-center text-[13px] transition-colors ${f.isPinned ? 'border-[#E65100] text-[#E65100]' : 'border-[#DAD9D6] text-[#939598] hover:border-[#E65100]'}`}
-                >
-                  📌
+              <div className="flex gap-1.5 flex-shrink-0 items-center">
+                <button onClick={() => togglePin(f.id)} title={f.isPinned ? 'Unpin' : 'Pin to dashboard'}
+                  className={`w-8 h-8 rounded-[8px] flex items-center justify-center transition-all ${f.isPinned ? 'bg-[#FFF7ED] text-[#C2410C]' : 'bg-[#F9FAFB] text-[#9CA3AF] hover:text-[#C2410C]'}`}
+                  style={{ border: f.isPinned ? '1px solid #FED7AA' : '1px solid rgba(0,15,30,0.07)' }}>
+                  <Pin size={13} strokeWidth={1.75} />
                 </button>
-                <button
-                  onClick={() => deleteFinding(f.id)}
-                  className="w-8 h-8 border border-[#FFCDD2] rounded flex items-center justify-center text-[13px] text-[#C62828] hover:bg-[#FFEBEE] transition-colors"
-                >
-                  🗑️
+                <button onClick={() => deleteFinding(f.id)}
+                  className="w-8 h-8 rounded-[8px] bg-[#F9FAFB] flex items-center justify-center text-[#9CA3AF] hover:text-[#BE123C] hover:bg-[#FFF1F2] transition-all"
+                  style={{ border: '1px solid rgba(0,15,30,0.07)' }}>
+                  <Trash2 size={13} strokeWidth={1.75} />
                 </button>
               </div>
             </div>
           ))}
+          {data.findings.length === 0 && (
+            <div className="text-center py-16 text-[#9CA3AF] text-[14px]">No findings yet. Add one above.</div>
+          )}
         </div>
       )}
 
-      {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#000F1E] text-white px-5 py-3 rounded-lg text-sm font-medium shadow-lg z-50 animate-in fade-in">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#000F1E] text-white px-5 py-3 rounded-[12px] text-[13.5px] font-semibold shadow-lg z-50 fade-up">
           {toast}
         </div>
       )}
