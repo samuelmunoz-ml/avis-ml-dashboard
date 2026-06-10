@@ -21,6 +21,35 @@ const CARD = {
 const INPUT = 'w-full h-10 px-3.5 rounded-[10px] text-[13.5px] text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all duration-200 bg-[#F9FAFB]';
 const INPUT_STYLE = { border: '1.5px solid #E5E7EB' };
 
+// ─── Reusable copy-headers button ────────────────────────────────────────────
+
+function CopyHeadersButton({ columns }: { columns: string[] }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(columns.join('\t'));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1.5 text-[12px] font-semibold ml-3 px-2.5 h-7 rounded-[7px] flex-shrink-0 transition-all duration-150"
+      style={{
+        background: copied ? '#F0FDF4' : '#FFFFFF',
+        color: copied ? '#15803D' : '#374151',
+        border: `1px solid ${copied ? '#BBF7D0' : 'rgba(0,15,30,0.12)'}`,
+        boxShadow: '0 1px 2px rgba(0,15,30,0.04)',
+      }}
+    >
+      {copied
+        ? <><CheckCircle size={11} strokeWidth={2.5} /> Copied!</>
+        : <><Copy size={11} strokeWidth={1.75} /> Copy headers</>
+      }
+    </button>
+  );
+}
+
 // ─── Status icon ──────────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: SourceConfig['status'] | 'syncing' }) {
@@ -36,28 +65,53 @@ function StatusDot({ status }: { status: SourceConfig['status'] | 'syncing' }) {
 
 function SchemaDrawer({ dataType }: { dataType: DataType }) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const schema = SHEET_SCHEMAS[dataType];
   const meta   = DATA_TYPE_META[dataType];
   if (!schema) return null;
+
+  function copyHeaders() {
+    navigator.clipboard.writeText(schema.columns.join('\t'));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div>
-      <button onClick={() => setOpen(v => !v)} className="flex items-center gap-1.5 text-[12px] font-semibold text-[#234474] hover:text-[#000F1E] transition-colors">
-        <Info size={12} strokeWidth={2} />
-        View required columns
-        {open ? <ChevronDown size={12} strokeWidth={2} /> : <ChevronRight size={12} strokeWidth={2} />}
-      </button>
+      <div className="flex items-center justify-between">
+        <button onClick={() => setOpen(v => !v)} className="flex items-center gap-1.5 text-[12px] font-semibold text-[#234474] hover:text-[#000F1E] transition-colors">
+          <Info size={12} strokeWidth={2} />
+          View required columns
+          {open ? <ChevronDown size={12} strokeWidth={2} /> : <ChevronRight size={12} strokeWidth={2} />}
+        </button>
+        {/* Always-visible copy button */}
+        <button
+          onClick={copyHeaders}
+          className="flex items-center gap-1.5 text-[12px] font-semibold transition-colors px-2.5 h-7 rounded-[7px]"
+          style={{
+            background: copied ? '#F0FDF4' : '#F3F4F6',
+            color: copied ? '#15803D' : '#374151',
+            border: '1px solid rgba(0,15,30,0.08)',
+          }}
+        >
+          {copied
+            ? <><CheckCircle size={11} strokeWidth={2} /> Copied!</>
+            : <><Copy size={11} strokeWidth={2} /> Copy column headers</>
+          }
+        </button>
+      </div>
       {open && (
         <div className="mt-3 rounded-[12px] p-4" style={{ background: '#F9FAFB', border: '1px solid rgba(0,15,30,0.07)' }}>
           <p className="text-[12px] text-[#6B7280] mb-3 leading-relaxed">{schema.description}</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 mb-3">
             {schema.columns.map(col => (
               <code key={col} className="text-[11px] font-mono px-2 py-0.5 rounded-[5px]" style={{ background: meta.color + '14', color: meta.color }}>
                 {col}
               </code>
             ))}
           </div>
-          <p className="text-[11px] text-[#9CA3AF] mt-3">
-            Copy these into Row 1 of your sheet tab. Each subsequent row is one record.
+          <p className="text-[11px] text-[#9CA3AF]">
+            Paste into Row 1 of your sheet tab. Each subsequent row is one record.
           </p>
         </div>
       )}
@@ -576,17 +630,19 @@ export default function SourceSyncPage() {
             const isOpen = expandedSchema === type;
             return (
               <div key={type} className="rounded-[12px] overflow-hidden" style={{ border: '1px solid rgba(0,15,30,0.06)' }}>
-                <button
-                  onClick={() => setExpandedSchema(isOpen ? null : type)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-[#FAFAFA] hover:bg-[#F3F4F6] transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-2 h-2 rounded-full" style={{ background: meta.color }} />
+                <div className="flex items-center justify-between px-4 py-3 bg-[#FAFAFA]">
+                  <button
+                    onClick={() => setExpandedSchema(isOpen ? null : type)}
+                    className="flex items-center gap-2.5 flex-1 text-left"
+                  >
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.color }} />
                     <span className="text-[13.5px] font-semibold text-[#111827]">{meta.label}</span>
-                    <span className="text-[11.5px] text-[#9CA3AF]">{schema.description}</span>
-                  </div>
-                  {isOpen ? <ChevronDown size={14} strokeWidth={2} className="text-[#6B7280]" /> : <ChevronRight size={14} strokeWidth={2} className="text-[#9CA3AF]" />}
-                </button>
+                    <span className="text-[11.5px] text-[#9CA3AF] hidden sm:inline">{schema.description}</span>
+                    {isOpen ? <ChevronDown size={14} strokeWidth={2} className="text-[#6B7280] ml-auto" /> : <ChevronRight size={14} strokeWidth={2} className="text-[#9CA3AF] ml-auto" />}
+                  </button>
+                  {/* Always-visible copy button */}
+                  <CopyHeadersButton columns={schema.columns} />
+                </div>
 
                 {isOpen && (
                   <div className="px-4 pb-4 pt-3">
@@ -598,12 +654,7 @@ export default function SourceSyncPage() {
                         </code>
                       ))}
                     </div>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(schema.columns.join('\t')); showToast('Column headers copied — paste into Row 1 of your sheet.'); }}
-                      className="flex items-center gap-1.5 text-[12px] font-semibold text-[#234474] hover:text-[#000F1E] transition-colors"
-                    >
-                      <Copy size={11} strokeWidth={2} /> Copy headers (tab-separated, ready to paste into sheets)
-                    </button>
+                    <p className="text-[11.5px] text-[#6B7280]">Headers are tab-separated — use the <strong>Copy headers</strong> button above to paste directly into Row 1 of your sheet.</p>
 
                     {type === 'kpi' && (
                       <div className="mt-3 p-3 rounded-[8px]" style={{ background: '#F9FAFB', border: '1px solid rgba(0,15,30,0.06)' }}>
