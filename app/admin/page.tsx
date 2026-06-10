@@ -15,6 +15,7 @@ import StatusBadge from '@/components/StatusBadge';
 import {
   ExternalLink, GripVertical, Plus, X, Trash2, Settings2,
   BarChart2, LayoutGrid, Table2, CalendarRange, Flag, ChevronRight,
+  LayoutDashboard, AlertCircle, FlaskConical, CalendarDays, Search,
 } from 'lucide-react';
 import {
   GanttProvider, GanttSidebar, GanttSidebarGroup, GanttSidebarItem,
@@ -37,6 +38,26 @@ interface MilestonesConfig { count: 2 | 4 | 6; filterStatus: 'all' | 'Complete' 
 type WidgetConfig = MetricsConfig | FindingsConfig | StatusTableConfig | TimelineConfig | MilestonesConfig;
 
 interface WidgetDef { id: string; catalogId: string; size: WidgetSize; config: Record<string, any>; }
+
+// ─── Page types ───────────────────────────────────────────────────────────────
+
+type PageKey = 'overview' | 'findings' | 'experiments' | 'timeline' | 'milestones';
+interface PageDef { id: string; key: PageKey; label: string; }
+
+const PAGE_META: Record<PageKey, { label: string; description: string; Icon: React.FC<any>; color: string }> = {
+  overview:    { label: 'Overview',    description: 'Dashboard home — KPI metrics, widget layout, and pinned content', Icon: LayoutDashboard, color: '#000F1E' },
+  findings:    { label: 'Findings',    description: 'Full findings list with filters, status badges, and detail cards',  Icon: AlertCircle,     color: '#8B5CF6' },
+  experiments: { label: 'Experiments', description: 'Experiment pipeline — status summary, search, and full table',      Icon: FlaskConical,    color: '#3B82F6' },
+  timeline:    { label: 'Timeline',    description: 'Interactive Gantt chart with engagement phases and milestones',      Icon: CalendarDays,    color: '#10B981' },
+  milestones:  { label: 'Milestones',  description: 'Key engagement milestones with completion status and checkpoints',  Icon: Flag,            color: '#F97316' },
+};
+
+const DEFAULT_PAGES: PageDef[] = [
+  { id: 'pg-overview',    key: 'overview',    label: 'Overview'    },
+  { id: 'pg-findings',    key: 'findings',    label: 'Findings'    },
+  { id: 'pg-experiments', key: 'experiments', label: 'Experiments' },
+  { id: 'pg-timeline',    key: 'timeline',    label: 'Timeline'    },
+];
 
 // ─── Default configs ──────────────────────────────────────────────────────────
 
@@ -567,6 +588,309 @@ function AddWidgetModal({
   );
 }
 
+// ─── Read-only page view banner ───────────────────────────────────────────────
+
+function ReadOnlyBanner({ pageKey }: { pageKey: PageKey }) {
+  const meta = PAGE_META[pageKey];
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-[12px] mb-6"
+      style={{ background: meta.color + '0C', border: `1px solid ${meta.color}22` }}>
+      <meta.Icon size={14} strokeWidth={1.75} style={{ color: meta.color }} className="flex-shrink-0" />
+      <p className="text-[12.5px] font-medium" style={{ color: meta.color }}>
+        <strong>Read-only preview</strong> — this is exactly what viewers see on the <strong>{meta.label}</strong> page.
+        No modifications needed; the page is managed automatically from your data.
+      </p>
+    </div>
+  );
+}
+
+// ─── Full page views (read-only) ──────────────────────────────────────────────
+
+function FindingsPageView() {
+  const { data } = useData();
+  const [filter, setFilter] = useState('All');
+  const statuses = ['All', 'Reported', 'Acknowledged', 'Fix in progress', 'Resolved'];
+  const filtered = filter === 'All' ? data.findings : data.findings.filter(f => f.status === filter);
+  const counts: Record<string, number> = { All: data.findings.length };
+  statuses.slice(1).forEach(s => { counts[s] = data.findings.filter(f => f.status === s).length; });
+
+  return (
+    <div>
+      <ReadOnlyBanner pageKey="findings" />
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h2 className="text-[22px] font-bold text-[#111827] tracking-[-0.02em]">Findings</h2>
+          <p className="text-[13px] text-[#9CA3AF] mt-0.5">{data.findings.length} total findings</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-6">
+        {statuses.map(s => (
+          <button key={s} onClick={() => setFilter(s)}
+            className="h-8 px-3.5 rounded-full text-[12.5px] font-medium transition-all duration-150"
+            style={{ background: filter === s ? '#000F1E' : '#FFFFFF', color: filter === s ? '#fff' : '#4B5563', border: '1px solid', borderColor: filter === s ? '#000F1E' : '#E5E7EB' }}>
+            {s} <span className="opacity-60">({counts[s] ?? 0})</span>
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {filtered.map(f => (
+          <div key={f.id} className="bg-white rounded-[14px] p-5"
+            style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: '1px solid rgba(0,15,30,0.05)' }}>
+            <div className="flex gap-2 mb-2 flex-wrap">
+              {f.isPinned && <span className="text-[11px] font-semibold bg-[#FFF7ED] text-[#C2410C] px-2 py-0.5 rounded-full">Pinned</span>}
+              <StatusBadge status={f.status} />
+            </div>
+            <p className="text-[14.5px] font-bold text-[#111827] leading-snug mb-1.5">{f.title}</p>
+            <p className="text-[12.5px] text-[#6B7280] leading-relaxed line-clamp-2 mb-3">{f.description}</p>
+            <div className="flex items-center justify-between text-[11.5px] text-[#9CA3AF]">
+              <span>{f.site} · {f.severity}</span>
+              <span>Added {f.dateAdded}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {filtered.length === 0 && <p className="text-center py-10 text-[#9CA3AF] text-[14px]">No findings match this filter.</p>}
+    </div>
+  );
+}
+
+function ExperimentsPageView() {
+  const { data } = useData();
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('All');
+  const statusConfig = [
+    { key: 'Running', color: '#3B82F6' }, { key: 'Planning', color: '#9CA3AF' },
+    { key: 'Complete', color: '#22C55E' }, { key: 'Blocked', color: '#F43F5E' },
+  ];
+  const filtered = data.experiments.filter(e => {
+    const matchFilter = filter === 'All' || e.status === filter;
+    const matchSearch = !search || e.title.toLowerCase().includes(search.toLowerCase());
+    return matchFilter && matchSearch;
+  });
+
+  return (
+    <div>
+      <ReadOnlyBanner pageKey="experiments" />
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h2 className="text-[22px] font-bold text-[#111827] tracking-[-0.02em]">Experiments</h2>
+          <p className="text-[13px] text-[#9CA3AF] mt-0.5">{data.experiments.length} experiments</p>
+        </div>
+      </div>
+      {/* Status summary */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {statusConfig.map(s => (
+          <button key={s.key} onClick={() => setFilter(filter === s.key ? 'All' : s.key)}
+            className="bg-white rounded-[12px] p-4 text-left transition-all hover:shadow-[0_4px_12px_rgba(0,15,30,0.08)]"
+            style={{ boxShadow: filter === s.key ? `0 0 0 2px ${s.color}` : '0 1px 3px rgba(0,15,30,0.06)', border: '1px solid rgba(0,15,30,0.05)' }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+            </div>
+            <p className="text-[26px] font-bold text-[#111827] tracking-[-0.02em] tabular-nums">
+              {data.experiments.filter(e => e.status === s.key).length}
+            </p>
+            <p className="text-[12px] text-[#6B7280]">{s.key}</p>
+          </button>
+        ))}
+      </div>
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={14} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search experiments…"
+          className="w-full h-10 pl-9 pr-4 rounded-[10px] text-[13.5px] text-[#111827] placeholder:text-[#9CA3AF] outline-none bg-white"
+          style={{ border: '1.5px solid #E5E7EB' }}
+          onFocus={e => { e.target.style.border='1.5px solid #000F1E'; }}
+          onBlur={e => { e.target.style.border='1.5px solid #E5E7EB'; }}
+        />
+      </div>
+      {/* Table */}
+      <div className="bg-white rounded-[14px] overflow-hidden"
+        style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: '1px solid rgba(0,15,30,0.05)' }}>
+        <table className="w-full">
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(0,15,30,0.06)', background: '#FAFAFA' }}>
+              {['Experiment', 'Status', 'Owner', 'Last Updated'].map(h => (
+                <th key={h} className="text-left px-5 py-3 text-[11px] font-semibold text-[#6B7280] uppercase tracking-[0.06em]">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((e, i) => (
+              <tr key={e.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid rgba(0,15,30,0.04)' : 'none' }}
+                className="hover:bg-[#FAFAFA] transition-colors">
+                <td className="px-5 py-3.5 text-[13.5px] font-semibold text-[#111827]">{e.title}</td>
+                <td className="px-5 py-3.5"><StatusBadge status={e.status} /></td>
+                <td className="px-5 py-3.5 text-[13px] text-[#6B7280]">{e.owner}</td>
+                <td className="px-5 py-3.5 text-[13px] text-[#6B7280]">{e.lastUpdated}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filtered.length === 0 && <p className="text-center py-10 text-[#9CA3AF] text-[14px]">No results.</p>}
+      </div>
+    </div>
+  );
+}
+
+function TimelinePageView() {
+  const { data } = useData();
+  const ENGAGEMENT_START = new Date('2026-05-18');
+  const TOTAL_DAYS = (new Date('2026-09-07').getTime() - ENGAGEMENT_START.getTime()) / 86400000;
+  const TODAY_PCT  = ((new Date('2026-06-10').getTime() - ENGAGEMENT_START.getTime()) / 86400000 / TOTAL_DAYS) * 100;
+  const MONTHS2: Record<string,number> = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  function datePct(s: string) {
+    const [m,d]=s.split(' '); const dt=new Date(2026,MONTHS2[m],parseInt(d));
+    return Math.max(0,Math.min(100,((dt.getTime()-ENGAGEMENT_START.getTime())/86400000/TOTAL_DAYS)*100));
+  }
+
+  return (
+    <div>
+      <ReadOnlyBanner pageKey="timeline" />
+      <h2 className="text-[22px] font-bold text-[#111827] tracking-[-0.02em] mb-1">Timeline</h2>
+      <p className="text-[13px] text-[#9CA3AF] mb-6">May 18 – Sep 7, 2026 · 16 weeks</p>
+      {/* Gantt */}
+      <div className="bg-white rounded-[14px] p-5 mb-6"
+        style={{ height: 300, boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: '1px solid rgba(0,15,30,0.05)' }}>
+        <GanttProvider range="monthly" zoom={75}>
+          <GanttSidebar>
+            <GanttSidebarGroup name="Phases">
+              {ganttFeaturesFromPhases(data.timelinePhases).map(f => <GanttSidebarItem key={f.id} feature={f}/>)}
+            </GanttSidebarGroup>
+          </GanttSidebar>
+          <GanttTimeline>
+            <GanttHeader/>
+            <GanttFeatureList>
+              <GanttFeatureListGroup>
+                {ganttFeaturesFromPhases(data.timelinePhases).map(f => (
+                  <GanttFeatureItem key={f.id} {...f}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:f.status.color}}/>
+                      <span className="text-[11px] font-semibold truncate" style={{color:f.status.color}}>{f.name}</span>
+                    </div>
+                  </GanttFeatureItem>
+                ))}
+              </GanttFeatureListGroup>
+            </GanttFeatureList>
+            <GanttToday/>
+          </GanttTimeline>
+        </GanttProvider>
+      </div>
+      {/* Milestones */}
+      <p className="text-[12px] font-semibold text-[#9CA3AF] uppercase tracking-[0.1em] mb-3">Key milestones</p>
+      <div className="grid grid-cols-2 gap-3">
+        {data.milestones.map(m => (
+          <div key={m.id} className="bg-white rounded-[12px] p-4"
+            style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: m.isHighlighted ? '1.5px solid #3B82F6' : '1px solid rgba(0,15,30,0.05)' }}>
+            <StatusBadge status={m.status} className="mb-2"/>
+            <p className={`text-[13px] font-bold leading-snug mb-1 ${m.status==='Complete'?'text-[#15803D]':m.isHighlighted?'text-[#1D4ED8]':'text-[#111827]'}`}>{m.title}</p>
+            <p className="text-[11px] text-[#9CA3AF]">{m.date}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MilestonesPageView() {
+  const { data } = useData();
+  return (
+    <div>
+      <ReadOnlyBanner pageKey="milestones" />
+      <h2 className="text-[22px] font-bold text-[#111827] tracking-[-0.02em] mb-1">Milestones</h2>
+      <p className="text-[13px] text-[#9CA3AF] mb-6">{data.milestones.length} milestones</p>
+      <div className="grid grid-cols-2 gap-4">
+        {data.milestones.map(m => (
+          <div key={m.id} className="bg-white rounded-[14px] p-5 transition-all hover:shadow-[0_4px_12px_rgba(0,15,30,0.08)]"
+            style={{ boxShadow: '0 1px 3px rgba(0,15,30,0.06)', border: m.isHighlighted ? '1.5px solid #3B82F6' : '1px solid rgba(0,15,30,0.05)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <StatusBadge status={m.status}/>
+              {m.isHighlighted && <span className="text-[10.5px] font-semibold text-[#1D4ED8] bg-[#EFF6FF] px-2 py-0.5 rounded-full">Checkpoint</span>}
+            </div>
+            <p className={`text-[14px] font-bold leading-snug mb-1.5 ${m.status==='Complete'?'text-[#15803D]':m.isHighlighted?'text-[#1D4ED8]':'text-[#111827]'}`}>{m.title}</p>
+            <p className="text-[12px] font-semibold text-[#9CA3AF] mb-2">{m.date}</p>
+            <p className="text-[13px] text-[#6B7280] leading-relaxed">{m.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Helper so timeline view can build gantt features without repeating the logic
+function ganttFeaturesFromPhases(phases: { id: string; name: string; startDate: string; endDate: string; status: string }[]) {
+  const MONTHS3: Record<string,number> = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  return phases.map(p => ({
+    id: p.id, name: p.name,
+    startAt: (() => { const [m,d]=p.startDate.split(' '); return new Date(2026,MONTHS3[m],parseInt(d)); })(),
+    endAt:   (() => { const [m,d]=p.endDate.split(' ');   return new Date(2026,MONTHS3[m],parseInt(d)); })(),
+    status:  { id: p.id, name: p.name, color: PHASE_COLORS[p.id] ?? '#6B7280' },
+  }));
+}
+
+// ─── Add page modal ───────────────────────────────────────────────────────────
+
+function AddPageModal({ existingKeys, onAdd, onClose }: {
+  existingKeys: PageKey[];
+  onAdd: (key: PageKey) => void;
+  onClose: () => void;
+}) {
+  const available = (Object.keys(PAGE_META) as PageKey[]).filter(k => !existingKeys.includes(k));
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{ background: 'rgba(0,15,30,0.4)', backdropFilter: 'blur(4px)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-[20px] w-full max-w-[520px] fade-up"
+        style={{ boxShadow: '0 24px 64px rgba(0,15,30,0.18)' }}>
+        {/* Header */}
+        <div className="flex items-start justify-between px-7 pt-6 pb-5"
+          style={{ borderBottom: '1px solid rgba(0,15,30,0.06)' }}>
+          <div>
+            <h2 className="text-[17px] font-bold text-[#111827] tracking-[-0.02em]">Add a page</h2>
+            <p className="text-[13px] text-[#9CA3AF] mt-0.5">
+              {available.length === 0 ? 'All available pages are already added.' : 'Choose which page to add to the dashboard.'}
+            </p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-[8px] bg-[#F3F4F6] flex items-center justify-center text-[#6B7280] hover:bg-[#E5E7EB] transition-colors ml-4">
+            <X size={14} strokeWidth={2} />
+          </button>
+        </div>
+        {/* Options */}
+        <div className="px-7 py-5 space-y-2.5">
+          {available.length === 0
+            ? <p className="text-center py-8 text-[#9CA3AF] text-[14px]">All pages are already on the dashboard.</p>
+            : available.map(key => {
+              const m = PAGE_META[key];
+              return (
+                <button key={key} onClick={() => onAdd(key)}
+                  className="w-full flex items-center gap-4 p-4 rounded-[14px] text-left group transition-all duration-200 hover:shadow-[0_4px_12px_rgba(0,15,30,0.08)] hover:-translate-y-0.5"
+                  style={{ border: '1.5px solid #E5E7EB', background: '#FAFAFA' }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = m.color)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#E5E7EB')}>
+                  <div className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
+                    style={{ background: m.color + '14' }}>
+                    <m.Icon size={18} strokeWidth={1.75} style={{ color: m.color }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-bold text-[#111827]">{m.label}</p>
+                    <p className="text-[12.5px] text-[#6B7280] mt-0.5">{m.description}</p>
+                  </div>
+                  <ChevronRight size={16} strokeWidth={2} className="text-[#9CA3AF] group-hover:text-[#374151] transition-colors flex-shrink-0" />
+                </button>
+              );
+            })
+          }
+        </div>
+        <div className="px-7 pb-6">
+          <button onClick={onClose} className="w-full h-10 rounded-[10px] text-[13.5px] font-semibold text-[#374151] hover:bg-[#F3F4F6] transition-colors" style={{ border: '1px solid rgba(0,15,30,0.1)' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sortable widget shell ────────────────────────────────────────────────────
 
 function SortableWidget({
@@ -680,6 +1004,28 @@ export default function AdminWidgetBuilder() {
   const [addModal,      setAddModal]      = useState(false);
   const [insertIndex,   setInsertIndex]   = useState<number | null>(null);
   const [configuringId, setConfiguringId] = useState<string | null>(null);
+  const [pages,         setPages]         = useState<PageDef[]>(DEFAULT_PAGES);
+  const [activePage,    setActivePage]    = useState<string>('pg-overview');
+  const [addPageModal,  setAddPageModal]  = useState(false);
+
+  function handleAddPage(key: PageKey) {
+    const meta = PAGE_META[key];
+    const newPage: PageDef = { id: `pg-${key}-${Date.now()}`, key, label: meta.label };
+    setPages(prev => [...prev, newPage]);
+    setActivePage(newPage.id);
+    setAddPageModal(false);
+  }
+
+  function handleDeletePage(id: string) {
+    setPages(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      // If we deleted the active page, switch to overview
+      if (activePage === id) setActivePage('pg-overview');
+      return updated;
+    });
+  }
+
+  const activePageDef = pages.find(p => p.id === activePage) ?? pages[0];
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -905,37 +1251,78 @@ export default function AdminWidgetBuilder() {
       </div>
 
       {/* Page tabs */}
-      <div className="flex gap-1 mb-6 bg-white rounded-[12px] p-1 w-fit fade-up fade-up-1" style={CARD_STYLE}>
-        {['Overview','Findings','Experiments','Timeline'].map((tab,i) => (
-          <button key={tab} className={`px-4 h-8 rounded-[8px] text-[13px] font-medium transition-all ${i===0?'bg-[#000F1E] text-white':'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6]'}`}>{tab}</button>
-        ))}
-        <button className="px-4 h-8 rounded-[8px] text-[13px] font-medium text-[#9CA3AF] hover:text-[#6B7280] transition-colors">+ Add page</button>
+      <div className="flex items-center gap-1 mb-6 fade-up fade-up-1">
+        <div className="flex items-center gap-1 bg-white rounded-[12px] p-1 flex-wrap" style={CARD_STYLE}>
+          {pages.map(page => {
+            const isActive  = page.id === activePage;
+            const isOverview = page.key === 'overview';
+            const meta      = PAGE_META[page.key];
+            return (
+              <div key={page.id} className="relative group flex items-center">
+                <button
+                  onClick={() => setActivePage(page.id)}
+                  className={`flex items-center gap-1.5 pl-3 h-8 rounded-[8px] text-[13px] font-medium transition-all ${
+                    isActive ? 'bg-[#000F1E] text-white pr-3' : 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] pr-3'
+                  } ${!isOverview && !isActive ? 'pr-7' : ''}`}
+                >
+                  <meta.Icon size={12} strokeWidth={isActive ? 2 : 1.75}
+                    className={isActive ? 'text-white' : 'text-[#9CA3AF]'} />
+                  {page.label}
+                </button>
+                {/* Delete button — visible on hover for non-overview tabs */}
+                {!isOverview && (
+                  <button
+                    onClick={() => handleDeletePage(page.id)}
+                    className={`absolute right-1 w-5 h-5 rounded-[5px] flex items-center justify-center transition-all ${
+                      isActive
+                        ? 'text-white/60 hover:text-white hover:bg-white/20 opacity-100'
+                        : 'text-[#9CA3AF] hover:text-[#BE123C] hover:bg-[#FFF1F2] opacity-0 group-hover:opacity-100'
+                    }`}
+                    title={`Remove ${page.label} page`}
+                  >
+                    <X size={10} strokeWidth={2.5} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Add page */}
+        <button
+          onClick={() => setAddPageModal(true)}
+          className="flex items-center gap-1.5 h-10 px-3.5 rounded-[12px] text-[13px] font-semibold text-[#6B7280] hover:text-[#111827] hover:bg-white transition-all"
+          style={{ border: '1.5px dashed #E5E7EB' }}
+          title="Add a new page"
+        >
+          <Plus size={13} strokeWidth={2.5} /> Add page
+        </button>
       </div>
 
-      <p className="text-[12px] text-[#9CA3AF] mb-4 fade-up fade-up-1 flex items-center gap-1.5">
-        <GripVertical size={12} strokeWidth={1.75} className="inline" />
-        Drag to reorder · Toggle <span className="font-semibold text-[#6B7280]">Full / ½</span> to resize · <Settings2 size={11} strokeWidth={1.75} className="inline" /> to configure
-      </p>
-
-      {/* Grid */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <SortableContext items={widgets.map(w => w.id)} strategy={rectSortingStrategy}>
-          <div className="grid gap-3" style={{ gridTemplateColumns:'repeat(2,minmax(0,1fr))' }}>
-            {widgets.map((widget, index) => (
-              <SortableWidget
-                key={widget.id}
-                widget={widget}
-                onSizeChange={handleSizeChange}
-                onRemove={handleRemove}
-                onConfigure={id => setConfiguringId(id)}
-              >
-                {renderWidget(widget)}
-              </SortableWidget>
-            ))}
-            <AddWidgetZone span={2} onClick={() => openAddModal(widgets.length - 1)} />
-            {lastWidgetIsHalf && <AddWidgetZone span={1} onClick={() => openAddModal(widgets.length - 1)} />}
-          </div>
-        </SortableContext>
+      {/* Overview — widget builder */}
+      {activePageDef?.key === 'overview' && (
+        <>
+          <p className="text-[12px] text-[#9CA3AF] mb-4 fade-up flex items-center gap-1.5">
+            <GripVertical size={12} strokeWidth={1.75} className="inline" />
+            Drag to reorder · Toggle <span className="font-semibold text-[#6B7280]">Full / ½</span> to resize · <Settings2 size={11} strokeWidth={1.75} className="inline" /> to configure
+          </p>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <SortableContext items={widgets.map(w => w.id)} strategy={rectSortingStrategy}>
+              <div className="grid gap-3" style={{ gridTemplateColumns:'repeat(2,minmax(0,1fr))' }}>
+                {widgets.map((widget) => (
+                  <SortableWidget
+                    key={widget.id}
+                    widget={widget}
+                    onSizeChange={handleSizeChange}
+                    onRemove={handleRemove}
+                    onConfigure={id => setConfiguringId(id)}
+                  >
+                    {renderWidget(widget)}
+                  </SortableWidget>
+                ))}
+                <AddWidgetZone span={2} onClick={() => openAddModal(widgets.length - 1)} />
+                {lastWidgetIsHalf && <AddWidgetZone span={1} onClick={() => openAddModal(widgets.length - 1)} />}
+              </div>
+            </SortableContext>
 
         <DragOverlay dropAnimation={{ duration:180, easing:'cubic-bezier(0.18,0.67,0.6,1.22)' }}>
           {activeWidget ? (
@@ -945,6 +1332,14 @@ export default function AdminWidgetBuilder() {
           ) : null}
         </DragOverlay>
       </DndContext>
+        </>
+      )}
+
+      {/* Other page views — read-only */}
+      {activePageDef?.key === 'findings'    && <FindingsPageView />}
+      {activePageDef?.key === 'experiments' && <ExperimentsPageView />}
+      {activePageDef?.key === 'timeline'    && <TimelinePageView />}
+      {activePageDef?.key === 'milestones'  && <MilestonesPageView />}
 
       {/* Add widget modal */}
       {addModal && (
@@ -961,6 +1356,15 @@ export default function AdminWidgetBuilder() {
           widget={configuringWidget}
           onSave={handleSaveConfig}
           onClose={() => setConfiguringId(null)}
+        />
+      )}
+
+      {/* Add page modal */}
+      {addPageModal && (
+        <AddPageModal
+          existingKeys={pages.map(p => p.key)}
+          onAdd={handleAddPage}
+          onClose={() => setAddPageModal(false)}
         />
       )}
     </div>
